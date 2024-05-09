@@ -627,15 +627,15 @@ class ScaffoldGridWorldEnv(gym.Env):
     """
     def render(self):
         # acumulate all agents position
-
-        mask = self.building_zone[..., 0] == ScaffoldGridWorldEnv.COL_BLOCK  # (8, 8, 8)
-
-        print(mask.shape)
-        print(mask)
+        # get where in the 3d grid there is a column in in the [x, y, z, 0th] position
+        col_mask = self.building_zone[..., 0] == ScaffoldGridWorldEnv.COL_BLOCK  # (8, 8, 8)
+        
+        print(col_mask.shape)
+        print(col_mask)
 
         fig = plt.figure()
-        colors = np.empty(mask.shape, dtype=object)
-        colors[mask] = 'blue'
+        colors = np.empty(col_mask.shape, dtype=object)
+        colors[col_mask] = 'blue'
 
         #agent_pos_grid = np.zeros((self.dimension_size, self.dimension_size, self.dimension_size), dtype=int)
         #agent_pos_grid[self.AgentsPos[0][0], self.AgentsPos[0][1], self.AgentsPos[0][2]] = 1
@@ -646,7 +646,6 @@ class ScaffoldGridWorldEnv(gym.Env):
         #scaffold_cube = self.building_zone == ScaffoldGridWorldEnv.SCAFFOLD
         #agent_position_cube = agent_pos_grid == 1
 
-        #fig = plt.figure()
 
         #building_zone_render = col_cube | agent_position_cube | beam_cube | scaffold_cube
         ## set the colors of each object
@@ -657,20 +656,41 @@ class ScaffoldGridWorldEnv(gym.Env):
         #colors[scaffold_cube] = 'pink'
         ## print(colors)
 
-        #ax = fig.add_subplot(1, 2, 1, projection='3d')
-        #ax.voxels(building_zone_render, facecolors=colors, edgecolor='k')
+        ax = fig.add_subplot(1, 2, 1, projection='3d')
+        ax.voxels(col_mask, facecolors=colors, edgecolor='k')
+
+        # all the mask of the blocks in (x, y, z, 0)
+        col_mask_0 = self.target[..., 0] == ScaffoldGridWorldEnv.COL_BLOCK  # (8, 8, 8)
+        beam_mask_0 = self.target[..., 0] == ScaffoldGridWorldEnv.BEAM_BLOCK  # (8, 8, 8)
+        electrical_mask_0 = self.target[..., 0] == ScaffoldGridWorldEnv.ELECTRICAL_BLOCK  # (8, 8, 8)
+        pipe_mask_0 = self.target[..., 0] == ScaffoldGridWorldEnv.PIPE_BLOCK
+
+        # all the mask of the blocks in (x, y, z, 1). only beam or electrial can be mixed on top of column and pipe respectively
+        beam_mask_1 = self.target[..., 1] == ScaffoldGridWorldEnv.BEAM_BLOCK  # (8, 8, 8)
+        electrical_mask_1 = self.target[..., 1] == ScaffoldGridWorldEnv.ELECTRICAL_BLOCK  # (8, 8, 8)
+
+        beam_colum_mask = col_mask_0 | beam_mask_1  # beam and column can be mixed in same (x, y, z)
+        electrical_pipe_mask = pipe_mask_0 | electrical_mask_1  # electrical and pipe can be mixed in same (x, y, z)
+
+        target_render = col_mask_0 | beam_mask_0 | electrical_mask_0 | pipe_mask_0 | beam_colum_mask | electrical_pipe_mask
+        # prepare mixture mask
 
         #col_cube = self.target == ScaffoldGridWorldEnv.COL_BLOCK
         #beam_cube = self.target == ScaffoldGridWorldEnv.BEAM_BLOCK
         #target_render = col_cube | beam_cube
-        ## set the colors of each object
-        #colors = np.empty(target_render.shape, dtype=object)
-        #colors[col_cube] = '#7A88CCC0'
-        #colors[beam_cube] = '#FF5733C0'
-        #ax = fig.add_subplot(1, 2, 2, projection='3d')
-        #ax.voxels(target_render, facecolors=colors, edgecolor='k')
+        # set the colors of each object
+        colors = np.empty(target_render.shape, dtype=object)
+        colors[col_mask_0] = '#7A88CCC0'  # blue
+        colors[beam_mask_0] = '#FF5733C0'  # red
+        colors[electrical_mask_0] = '#ccc87a'  # yellow
+        colors[pipe_mask_0] = '#7accbc'   # turoise
+        colors[beam_colum_mask] = '#967acc'  # purple = red + blue
+        colors[electrical_pipe_mask] = '#b3cc7a'  # yellow green
 
-        #plt.show()
+        ax = fig.add_subplot(1, 2, 2, projection='3d')
+        ax.voxels(target_render, facecolors=colors, edgecolor='k')
+
+        plt.show()
 
   
 
@@ -680,7 +700,8 @@ class ScaffoldGridWorldEnv(gym.Env):
 
 
 if __name__ == '__main__':
-    env = ScaffoldGridWorldEnv(8, "path", mixture_capacity=2, num_agents=1, debug=False)    
+    env = ScaffoldGridWorldEnv(4, "path", mixture_capacity=2, num_agents=1, debug=False)    
+    print(env.target)
     env.render()
 
 
