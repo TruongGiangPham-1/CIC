@@ -7,4 +7,4 @@
 5. `cd GridWorldEnv/`
 6. `pip3 install -e .` to install the gridowrld package
 
-right now I am just working locally on GridWorldEnv/GridWorldEnv/ens/grid_world.py. Therefore, I am just running `python3 GridWorldEnv/GridWorldEnv/ens/grid_world.py` to test gridworld features
+right now I am just working locally on GridWorldEnv/GridWorldEnv/env/grid_world.py. Therefore, I am just running `python3 GridWorldEnv/GridWorldEnv/ens/grid_world.py` to test gridworld features
