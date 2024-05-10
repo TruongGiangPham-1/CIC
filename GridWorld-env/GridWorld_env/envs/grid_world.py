@@ -191,37 +191,65 @@ class ScaffoldGridWorldEnv(gym.Env):
         # Hardcoding 4 columns, and 4 beams across the 4 columns. TO BE CHANGED TO BE MORE DYNAMIC AND USEABLE
         possible_targets = []
         
-        points = []
-        for i in range(self.dimension_size):  # all column beams
-            #points.append([0, 0, i, 0]) # column 1 at position (0, 0)
-            #points.append([0, self.dimension_size - 1, i, 0]) # column 2 at position (0, dimension_size - 1)
-            #points.append([self.dimension_size - 1, 0, i, 0]) # column 3 at position (dimension_size - 1, 0)
-            #points.append([self.dimension_size - 1, self.dimension_size - 1, i, 0]) # column 4 at position (dimension_size - 1, dimension_size - 1)
-            
-            #points.append([0, i, self.dimension_size - 1, 0]) # beam 1 connecting column 1 and column 2
-            #points.append([self.dimension_size - 1, i, self.dimension_size - 1, 0]) # beam 2 connecting column 3 and column 4
-            #points.append([i, 0, self.dimension_size - 1, 0]) # beam 3 connecting column 1 and column 3
-            #points.append([i, self.dimension_size - 1, self.dimension_size - 1, 0]) # beam 4 connecting column 2 and column 4
-            pass
-        
-        # place 4 beam in 4 corder of grid at [x, y, z, 1]
-        points.append([0, 0, 0, 1]) # column 1 at position (0, 0)
-        points.append([0, self.dimension_size - 1, 0, 1]) # column 2 at position (0, dimension_size - 1)
-        points.append([self.dimension_size - 1, 0, 0, 1]) # column 3 at position (dimension_size - 1, 0)
-        points.append([self.dimension_size - 1, self.dimension_size - 1, 0, 1]) # column 1 at position (0, 0)
-             
-        
-        possible_targets.append(points)                      
-        for p in points:
-            self.target[p[0], p[1], p[2], p[3]] = ScaffoldGridWorldEnv.BEAM_BLOCK  # -1 is block
-        points.clear()
-        # column
-        points.append([0, 0, 0, 0]) # column 1 at position (0, 0)
-        points.append([0, self.dimension_size - 1, 0, 0]) # column 2 at position (0, dimension_size - 1)
-        points.append([self.dimension_size - 1, 0, 0, 0]) # column 3 at position (dimension_size - 1, 0)
-        points.append([self.dimension_size - 1, self.dimension_size - 1, 0, 0]) # column 1 at position (0, 0)
-        for p in points:
+        col_points = []
+        beam_points = []
+        pipe_points = []
+        electrical_points = []
+        for i in range(4):  # place all columns:
+            col_points.append([2, 2, i, 0]) # column 1 at position (2, 2)
+            col_points.append([2, 4, i, 0]) # column 2 at position (2, 4
+            col_points.append([5, 2, i, 0]) # column 3 at position (5, 2)
+            col_points.append([5, 4, i, 0]) # column 4 at position (5, 4)
+
+        for p in col_points:
             self.target[p[0], p[1], p[2], p[3]] = ScaffoldGridWorldEnv.COL_BLOCK  # -1 is block
+        col_points.clear()
+
+        # add beams on the 1st and 3rd floor between columns
+        for i in [0, 2]:
+            beam_points.append([2, 2, i, 1]) # column 1 at position (2, 2)
+            beam_points.append([2, 4, i, 1]) # column 2 at position (2, 4
+            beam_points.append([5, 2, i, 1]) # column 3 at position (5, 2)
+            beam_points.append([5, 4, i, 1]) # column 4 at position (5, 4)
+
+            # add beams on the floor between columns
+            beam_points.append([3, 2, i, 0]) # column 1 at position (2, 2)
+            beam_points.append([3, 4, i, 0]) # column 2 at position (2, 4
+            beam_points.append([4, 2, i, 0]) # column 3 at position (5, 2)
+            beam_points.append([4, 4, i, 0]) # column 4 at position (5, 4)
+            beam_points.append([2, 3, i, 0]) # column 4 at position (5, 4)
+            beam_points.append([5, 3, i, 0]) # column 4 at position (5, 4)
+
+        for p in beam_points:
+            self.target[p[0], p[1], p[2], p[3]] = ScaffoldGridWorldEnv.BEAM_BLOCK
+        # add pipe work
+        for i in [1]:  # in the 2nd floor
+            pipe_points.append([2, 3, i, 0])
+            pipe_points.append([3, 3, i, 0])
+            pipe_points.append([4, 3, i, 0])
+            pipe_points.append([5, 3, i, 0])
+        for p in pipe_points:
+            self.target[p[0], p[1], p[2], p[3]] = ScaffoldGridWorldEnv.PIPE_BLOCK
+
+        # add electrical work
+        for i in [1, 3]:  # in the 2nd and 4th floor
+            if i == 1:
+                electrical_points.append([2, 3, i, 1])
+                electrical_points.append([3, 3, i, 1])
+                electrical_points.append([4, 3, i, 1])
+                electrical_points.append([5, 3, i, 1])
+            else:
+                electrical_points.append([2, 3, i, 0])
+                electrical_points.append([3, 3, i, 0])
+                electrical_points.append([4, 3, i, 0])
+                electrical_points.append([5, 3, i, 0])
+        for p in electrical_points:
+            self.target[p[0], p[1], p[2], p[3]] = ScaffoldGridWorldEnv.ELECTRICAL_BLOCK
+
+
+
+        # place 4 beam in 4 corner of grid at [x, y, z, 1]
+    
 
 
     def _tryMove(self, action, agent_id):
@@ -626,39 +654,21 @@ class ScaffoldGridWorldEnv(gym.Env):
     
     """
     def render(self):
-        # acumulate all agents position
+        ### BUILDING ZONE RENDER
         # get where in the 3d grid there is a column in in the [x, y, z, 0th] position
         col_mask = self.building_zone[..., 0] == ScaffoldGridWorldEnv.COL_BLOCK  # (8, 8, 8)
-        
-        print(col_mask.shape)
-        print(col_mask)
 
         fig = plt.figure()
         colors = np.empty(col_mask.shape, dtype=object)
         colors[col_mask] = 'blue'
 
-        #agent_pos_grid = np.zeros((self.dimension_size, self.dimension_size, self.dimension_size), dtype=int)
-        #agent_pos_grid[self.AgentsPos[0][0], self.AgentsPos[0][1], self.AgentsPos[0][2]] = 1
-
-        ## prepare some coordinates
-        #col_cube = self.building_zone == ScaffoldGridWorldEnv.COL_BLOCK
-        #beam_cube = self.building_zone == ScaffoldGridWorldEnv.BEAM_BLOCK
-        #scaffold_cube = self.building_zone == ScaffoldGridWorldEnv.SCAFFOLD
-        #agent_position_cube = agent_pos_grid == 1
-
-
-        #building_zone_render = col_cube | agent_position_cube | beam_cube | scaffold_cube
-        ## set the colors of each object
-        #colors = np.empty(building_zone_render.shape, dtype=object)
-        #colors[col_cube] = '#7A88CCC0'
-        #colors[agent_position_cube] = '#FFD65DC0'
-        #colors[beam_cube] = '#FF5733C0'
-        #colors[scaffold_cube] = 'pink'
-        ## print(colors)
 
         ax = fig.add_subplot(1, 2, 1, projection='3d')
         ax.voxels(col_mask, facecolors=colors, edgecolor='k')
 
+
+
+        ### TARGET RENDER
         # all the mask of the blocks in (x, y, z, 0)
         col_mask_0 = self.target[..., 0] == ScaffoldGridWorldEnv.COL_BLOCK  # (8, 8, 8)
         beam_mask_0 = self.target[..., 0] == ScaffoldGridWorldEnv.BEAM_BLOCK  # (8, 8, 8)
@@ -669,38 +679,45 @@ class ScaffoldGridWorldEnv(gym.Env):
         beam_mask_1 = self.target[..., 1] == ScaffoldGridWorldEnv.BEAM_BLOCK  # (8, 8, 8)
         electrical_mask_1 = self.target[..., 1] == ScaffoldGridWorldEnv.ELECTRICAL_BLOCK  # (8, 8, 8)
 
-        beam_colum_mask = col_mask_0 | beam_mask_1  # beam and column can be mixed in same (x, y, z)
-        electrical_pipe_mask = pipe_mask_0 | electrical_mask_1  # electrical and pipe can be mixed in same (x, y, z)
+        beam_colum_mask = col_mask_0 & beam_mask_1  # beam and column can be mixed in same (x, y, z)
+        electrical_pipe_mask = pipe_mask_0 & electrical_mask_1  # electrical and pipe can be mixed in same (x, y, z)
 
         target_render = col_mask_0 | beam_mask_0 | electrical_mask_0 | pipe_mask_0 | beam_colum_mask | electrical_pipe_mask
         # prepare mixture mask
-
-        #col_cube = self.target == ScaffoldGridWorldEnv.COL_BLOCK
-        #beam_cube = self.target == ScaffoldGridWorldEnv.BEAM_BLOCK
-        #target_render = col_cube | beam_cube
         # set the colors of each object
         colors = np.empty(target_render.shape, dtype=object)
-        colors[col_mask_0] = '#7A88CCC0'  # blue
+        colors[col_mask_0] = '#7aa6cc'  # blue
         colors[beam_mask_0] = '#FF5733C0'  # red
         colors[electrical_mask_0] = '#ccc87a'  # yellow
         colors[pipe_mask_0] = '#7accbc'   # turoise
         colors[beam_colum_mask] = '#967acc'  # purple = red + blue
         colors[electrical_pipe_mask] = '#b3cc7a'  # yellow green
 
+        print(colors)
+
         ax = fig.add_subplot(1, 2, 2, projection='3d')
         ax.voxels(target_render, facecolors=colors, edgecolor='k')
 
-        plt.show()
 
-  
+
+        # adding legends (used AI assisted tool to generate this legend code)
+        legend_labels = ['column', 'beam', 'electrical', 'pipe', 'beam_column', 'electrical_pipe']
+        legend_colors = ['#7aa6cc', '#FF5733C0', '#ccc87a', '#7accbc', '#967acc', '#b3cc7a']
+        legend_patches = [plt.Line2D([0], [0], marker='o', color='w', label=label, markerfacecolor=color, markersize=10) for label, color in zip(legend_labels, legend_colors)]
+        ax.legend(handles=legend_patches, loc='upper right',  bbox_to_anchor=(1.2, 1.4))
+        plt.show()
 
     
     def close(self):
         pass
 
 
+
+
+
+
 if __name__ == '__main__':
-    env = ScaffoldGridWorldEnv(4, "path", mixture_capacity=2, num_agents=1, debug=False)    
+    env = ScaffoldGridWorldEnv(8, "path", mixture_capacity=2, num_agents=1, debug=False)    
     print(env.target)
     env.render()
 
