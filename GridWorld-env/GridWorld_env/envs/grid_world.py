@@ -654,17 +654,7 @@ class ScaffoldGridWorldEnv(gym.Env):
     
     """
     def render(self):
-        ### BUILDING ZONE RENDER
-        # get where in the 3d grid there is a column in in the [x, y, z, 0th] position
-        col_mask = self.building_zone[..., 0] == ScaffoldGridWorldEnv.COL_BLOCK  # (8, 8, 8)
-
         fig = plt.figure()
-        colors = np.empty(col_mask.shape, dtype=object)
-        colors[col_mask] = 'blue'
-
-
-        ax = fig.add_subplot(1, 2, 1, projection='3d')
-        ax.voxels(col_mask, facecolors=colors, edgecolor='k')
 
 
 
@@ -693,11 +683,10 @@ class ScaffoldGridWorldEnv(gym.Env):
         colors[beam_colum_mask] = '#967acc'  # purple = red + blue
         colors[electrical_pipe_mask] = '#b3cc7a'  # yellow green
 
-        print(colors)
+        #print(colors)
 
         ax = fig.add_subplot(1, 2, 2, projection='3d')
         ax.voxels(target_render, facecolors=colors, edgecolor='k')
-
 
 
         # adding legends (used AI assisted tool to generate this legend code)
@@ -705,6 +694,31 @@ class ScaffoldGridWorldEnv(gym.Env):
         legend_colors = ['#7aa6cc', '#FF5733C0', '#ccc87a', '#7accbc', '#967acc', '#b3cc7a']
         legend_patches = [plt.Line2D([0], [0], marker='o', color='w', label=label, markerfacecolor=color, markersize=10) for label, color in zip(legend_labels, legend_colors)]
         ax.legend(handles=legend_patches, loc='upper right',  bbox_to_anchor=(1.2, 1.4))
+
+
+
+
+
+        ### BUILDING ZONE RENDER
+        col_mask_0 = self.building_zone[..., 0] == ScaffoldGridWorldEnv.COL_BLOCK  # (8, 8, 8)
+        beam_mask_0 = self.building_zone[..., 0] == ScaffoldGridWorldEnv.BEAM_BLOCK  # (8, 8, 8)
+        electrical_mask_0 = self.building_zone[..., 0] == ScaffoldGridWorldEnv.ELECTRICAL_BLOCK  # (8, 8, 8)
+        pipe_mask_0 = self.building_zone[..., 0] == ScaffoldGridWorldEnv.PIPE_BLOCK
+
+        beam_mask_1 = self.building_zone[..., 1] == ScaffoldGridWorldEnv.BEAM_BLOCK  # (8, 8, 8)
+        electrical_mask_1 = self.building_zone[..., 1] == ScaffoldGridWorldEnv.ELECTRICAL_BLOCK  # (8, 8, 8)
+
+        beam_colum_mask = col_mask_0 & beam_mask_1  # beam and column can be mixed in same (x, y, z)
+        electrical_pipe_mask = pipe_mask_0 & electrical_mask_1  # electrical and pipe can be mixed in same (x, y, z)
+
+        scaffold_mask = self.building_zone[..., 0] == ScaffoldGridWorldEnv.SCAFFOLD
+
+        building_render = col_mask_0 | beam_mask_0 | electrical_mask_0 | pipe_mask_0 | beam_colum_mask | electrical_pipe_mask | scaffold_mask
+
+        colors[scaffold_mask] = 'pink'
+
+        ax = fig.add_subplot(1, 2, 1, projection='3d')
+        ax.voxels(building_render, facecolors=colors, edgecolor='k')
         plt.show()
 
     
