@@ -91,6 +91,7 @@ class ScaffoldGridWorldEnv(gym.Env):
        
         self.num_agents = num_agents
 
+        self.AgentsPos = np.zeros((self.num_agents, 3), dtype=int)
         #self.reset()
 
         self._init_target()
@@ -104,6 +105,7 @@ class ScaffoldGridWorldEnv(gym.Env):
     def reset(self, seed=None, options=None):
         #self.mutex.acquire()  # get lock to enter critical section
         self.building_zone.fill(0)
+        self.agent_pos_grid.fill(0)
         self.finished_structure = False
         self.finished_structure_reward_used = False
         self.finished_structure_with_scafold = False
@@ -111,36 +113,30 @@ class ScaffoldGridWorldEnv(gym.Env):
         self.AgentsPos = np.zeros((self.num_agents, 3), dtype=int)
 
         random_start_pos = np.zeros(3, dtype=int)
+        #self._init_target()
+        self.record_sequence = []
+
+        self.timestep_elapsed = 0
+        self._init_obs()
+
+        random_start_pos = np.zeros(3, dtype=int)
         for i in range(self.num_agents):
             random_start_pos[0] = np.random.randint(0, self.dimension_size)
             random_start_pos[1] = np.random.randint(0, self.dimension_size)
             random_start_pos[2] = 0
             self.AgentsPos[i] = random_start_pos
-            #self.building_zone[random_start_pos[0], random_start_pos[1], random_start_pos[2]] = 1  # encode agents position on the building zone
-        self.action_space = spaces.Discrete(10)   
-        #self._init_target()
-        
-        self.record_sequence = []
-        self.observation_space = spaces.Box(low=0, high=1, shape=(3, self.dimension_size, self.dimension_size, self.dimension_size), dtype=int)
-
-        self.timestep_elapsed = 0
-        self._init_obs()
-
-        
-
-
         np.copyto(self.obs[2], random.choice(self.all_targets))
 
         # change all instance of 1 to 0.5 in self.obs
-        self.obs[2][self.obs[2] == 1] = ScaffoldGridWorldEnv.COL_BLOCK
-        # change all instance of 2 to 1 in self.obs
-        self.obs[2][self.obs[2] == 2] = ScaffoldGridWorldEnv.BEAM_BLOCK
+        #self.obs[2][self.obs[2] == 1] = ScaffoldGridWorldEnv.COL_BLOCK
+        ## change all instance of 2 to 1 in self.obs
+        #self.obs[2][self.obs[2] == 2] = ScaffoldGridWorldEnv.BEAM_BLOCK
 
-        obs = self.get_obs(0)
-        #self.mutex.release()
-        return obs, {}
+        #obs = self.get_obs(0)
+        return self.get_obs(), {}
 
     # return (3 x N x N x N) tensor for now, 
+    # TODO: implement
     def get_obs(self, agent_id=0):
         # clear agent_pos_grid
         self.agent_pos_grid.fill(0)
@@ -148,18 +144,19 @@ class ScaffoldGridWorldEnv(gym.Env):
         #agent_pos_grid[self.AgentsPos[agent_id][0], self.AgentsPos[agent_id][1], self.AgentsPos[agent_id][2]] = 1
         self.agent_pos_grid[self.AgentsPos[agent_id][0], self.AgentsPos[agent_id][1], self.AgentsPos[agent_id][2]] = 1
 
-        other_agents_pos_grid = np.zeros((self.dimension_size, self.dimension_size, self.dimension_size), dtype=int)
-        for i in range(self.num_agents):
-            if i != agent_id:
-                other_agents_pos_grid[self.AgentsPos[i][0], self.AgentsPos[i][1], self.AgentsPos[i][2]] = 1
-
-        #TODO: concat other_agents_pos_grid when doing multiagent
         #return np.stack((self.building_zone, agent_pos_grid, self.target), axis=0)
-        return self.obs
+
+#        return self.obs
+        return {
+            'agent_position': self.agent_pos_grid,
+            'building_zone': self.building_zone,
+            'target': self.target
+        }
         
     def _get_info(self):
         pass
 
+    # TODO : implement
     def _init_obs(self):
         if self._initialized:
             return
@@ -182,7 +179,7 @@ class ScaffoldGridWorldEnv(gym.Env):
 
     def _placeAgentInBuildingZone(self):
         # place some agent in building zone for testing
-        self.AgentsPos[0] = [self.dimension_size//2, self.dimension_size//2, 0]
+        self.AgentsPos[0] = [0, 0, 0]
         return
 
     def _init_target(self):
@@ -191,37 +188,65 @@ class ScaffoldGridWorldEnv(gym.Env):
         # Hardcoding 4 columns, and 4 beams across the 4 columns. TO BE CHANGED TO BE MORE DYNAMIC AND USEABLE
         possible_targets = []
         
-        points = []
-        for i in range(self.dimension_size):  # all column beams
-            #points.append([0, 0, i, 0]) # column 1 at position (0, 0)
-            #points.append([0, self.dimension_size - 1, i, 0]) # column 2 at position (0, dimension_size - 1)
-            #points.append([self.dimension_size - 1, 0, i, 0]) # column 3 at position (dimension_size - 1, 0)
-            #points.append([self.dimension_size - 1, self.dimension_size - 1, i, 0]) # column 4 at position (dimension_size - 1, dimension_size - 1)
-            
-            #points.append([0, i, self.dimension_size - 1, 0]) # beam 1 connecting column 1 and column 2
-            #points.append([self.dimension_size - 1, i, self.dimension_size - 1, 0]) # beam 2 connecting column 3 and column 4
-            #points.append([i, 0, self.dimension_size - 1, 0]) # beam 3 connecting column 1 and column 3
-            #points.append([i, self.dimension_size - 1, self.dimension_size - 1, 0]) # beam 4 connecting column 2 and column 4
-            pass
-        
-        # place 4 beam in 4 corder of grid at [x, y, z, 1]
-        points.append([0, 0, 0, 1]) # column 1 at position (0, 0)
-        points.append([0, self.dimension_size - 1, 0, 1]) # column 2 at position (0, dimension_size - 1)
-        points.append([self.dimension_size - 1, 0, 0, 1]) # column 3 at position (dimension_size - 1, 0)
-        points.append([self.dimension_size - 1, self.dimension_size - 1, 0, 1]) # column 1 at position (0, 0)
-             
-        
-        possible_targets.append(points)                      
-        for p in points:
-            self.target[p[0], p[1], p[2], p[3]] = ScaffoldGridWorldEnv.BEAM_BLOCK  # -1 is block
-        points.clear()
-        # column
-        points.append([0, 0, 0, 0]) # column 1 at position (0, 0)
-        points.append([0, self.dimension_size - 1, 0, 0]) # column 2 at position (0, dimension_size - 1)
-        points.append([self.dimension_size - 1, 0, 0, 0]) # column 3 at position (dimension_size - 1, 0)
-        points.append([self.dimension_size - 1, self.dimension_size - 1, 0, 0]) # column 1 at position (0, 0)
-        for p in points:
+        col_points = []
+        beam_points = []
+        pipe_points = []
+        electrical_points = []
+        for i in range(4):  # place all columns:
+            col_points.append([2, 2, i, 0]) # column 1 at position (2, 2)
+            col_points.append([2, 4, i, 0]) # column 2 at position (2, 4
+            col_points.append([5, 2, i, 0]) # column 3 at position (5, 2)
+            col_points.append([5, 4, i, 0]) # column 4 at position (5, 4)
+
+        for p in col_points:
             self.target[p[0], p[1], p[2], p[3]] = ScaffoldGridWorldEnv.COL_BLOCK  # -1 is block
+        col_points.clear()
+
+        # add beams on the 1st and 3rd floor between columns
+        for i in [0, 2]:
+            beam_points.append([2, 2, i, 1]) # column 1 at position (2, 2)
+            beam_points.append([2, 4, i, 1]) # column 2 at position (2, 4
+            beam_points.append([5, 2, i, 1]) # column 3 at position (5, 2)
+            beam_points.append([5, 4, i, 1]) # column 4 at position (5, 4)
+
+            # add beams on the floor between columns
+            beam_points.append([3, 2, i, 0]) # column 1 at position (2, 2)
+            beam_points.append([3, 4, i, 0]) # column 2 at position (2, 4
+            beam_points.append([4, 2, i, 0]) # column 3 at position (5, 2)
+            beam_points.append([4, 4, i, 0]) # column 4 at position (5, 4)
+            beam_points.append([2, 3, i, 0]) # column 4 at position (5, 4)
+            beam_points.append([5, 3, i, 0]) # column 4 at position (5, 4)
+
+        for p in beam_points:
+            self.target[p[0], p[1], p[2], p[3]] = ScaffoldGridWorldEnv.BEAM_BLOCK
+        # add pipe work
+        for i in [1]:  # in the 2nd floor
+            pipe_points.append([2, 3, i, 0])
+            pipe_points.append([3, 3, i, 0])
+            pipe_points.append([4, 3, i, 0])
+            pipe_points.append([5, 3, i, 0])
+        for p in pipe_points:
+            self.target[p[0], p[1], p[2], p[3]] = ScaffoldGridWorldEnv.PIPE_BLOCK
+
+        # add electrical work
+        for i in [1, 3]:  # in the 2nd and 4th floor
+            if i == 1:
+                electrical_points.append([2, 3, i, 1])
+                electrical_points.append([3, 3, i, 1])
+                electrical_points.append([4, 3, i, 1])
+                electrical_points.append([5, 3, i, 1])
+            else:
+                electrical_points.append([2, 3, i, 0])
+                electrical_points.append([3, 3, i, 0])
+                electrical_points.append([4, 3, i, 0])
+                electrical_points.append([5, 3, i, 0])
+        for p in electrical_points:
+            self.target[p[0], p[1], p[2], p[3]] = ScaffoldGridWorldEnv.ELECTRICAL_BLOCK
+
+
+
+        # place 4 beam in 4 corner of grid at [x, y, z, 1]
+    
 
 
     def _tryMove(self, action, agent_id):
@@ -247,50 +272,50 @@ class ScaffoldGridWorldEnv(gym.Env):
         return new_pos
 
 
-    def _isInScaffoldingDomain(self, pos):
-        if (self.building_zone[pos[0], pos[1], pos[2]] == ScaffoldGridWorldEnv.SCAFFOLD):
+    def scaffold_exist(self, pos):
+        if (self.building_zone[pos[0], pos[1], pos[2], 0] == ScaffoldGridWorldEnv.SCAFFOLD):
             return True
         return False 
+    # TODO: outdated
     def _isInBlock(self, pos):
         if (self.building_zone[pos[0], pos[1], pos[2]] == ScaffoldGridWorldEnv.COL_BLOCK or self.building_zone[pos[0], pos[1], pos[2]] == ScaffoldGridWorldEnv.BEAM_BLOCK):
             return True
         return False
+    # TODO: outdated
     def _columnExist(self, pos):
-        if (self.building_zone[pos[0], pos[1], pos[2]] == ScaffoldGridWorldEnv.COL_BLOCK):
+        if (self.building_zone[pos[0], pos[1], pos[2], 0] == ScaffoldGridWorldEnv.COL_BLOCK):
             return True
         return False
 
+
+    # TODO: outdated
     def _beamExist(self, pos):
-        if (self.building_zone[pos[0], pos[1], pos[2]] == ScaffoldGridWorldEnv.BEAM_BLOCK):
+        if (self.building_zone[pos[0], pos[1], pos[2], 0] == ScaffoldGridWorldEnv.BEAM_BLOCK):
             return True
         return False
 
     # position is not in any block or scaffolding
     def _is_empty(self, pos):
-        if (self.building_zone[pos[0], pos[1], pos[2]] == 0):
+        if (self.building_zone[pos[0], pos[1], pos[2], 0] == 0):
             return True
         return False
-    # there is an agent in the position 
-    def _thereIsAgent(self, pos):
-        if (self.building_zone[pos[0], pos[1], pos[2]] == 1):
-            return True
-        return False
+    # when all mixture capacity is exhausted at (X, y, z), we can't place any more block
+    def _is_full(self, pos):
+        for i in range(self.mixture_capacity):
+            if (self.building_zone[pos[0], pos[1], pos[2], i] == 0):
+                return False
+        return True
 
+
+    # TODO: outdated
     def _isOutOfBound(self, pos):
         if (pos[0] < 0 or pos[0] >= self.dimension_size or pos[1] < 0 or pos[1] >= self.dimension_size or pos[2] < 0 or pos[2] >= self.dimension_size):
             return True
         return False
 
 
-
-
     """
-    return true if placement is valid
-
-    arg:
-        action: the action to be performed
-        current_pos: the current position of the agent
-        agent_id: the id of the agent
+    Scaffold can only be placed if it is on the ground, or it is clamped to neighboring scaffold
     
     """
     def _isScaffoldValid(self, current_pos):
@@ -300,34 +325,45 @@ class ScaffoldGridWorldEnv(gym.Env):
                 [current_pos[0] + delta_x, current_pos[1] + delta_y, current_pos[2] + delta_z]
                 for delta_x, delta_y, delta_z in sneighbors
             ]
-
-        # Find if there is any supporting neighbour, or on the ground
+        # Find if there is any neighbour clamping(clamping in any direction), or on the ground
         supporting_neighbour = current_pos[2] == 0
         if supporting_neighbour == False:
             for neighbour in neighbour_direction:
-                if neighbour[0] < 0 or neighbour[0] >= self.dimension_size \
-                        or neighbour[1] < 0 or neighbour[1] >= self.dimension_size \
-                        or neighbour[2] < 0 or neighbour[2] >= self.dimension_size:
+                if self._isOutOfBound(neighbour):
                     continue
-
-                if self.building_zone[neighbour[0], neighbour[1], neighbour[2]] == ScaffoldGridWorldEnv.SCAFFOLD:
+                if self.scaffold_exist(neighbour):
                     supporting_neighbour = True
                     break
-
         # If the space is already occupied
-        duplicate_block = self.building_zone[current_pos[0], current_pos[1], current_pos[2]] != ScaffoldGridWorldEnv.EMPTY
-        if supporting_neighbour and not duplicate_block:
+
+        if supporting_neighbour:
             return True
         return False
     
-
+    """
+    We can remove scaffold if:
+    1. There is a scaffold in the current position
+    2. there is no column block above the scaffold since only column block need verticacl stack and we cant make floating column block.
+    3. we are the top of the grid
+    
+    """
+    def _check_remove_scaffold(self, current_pos):
+        above_coordinate = [current_pos[0], current_pos[1], current_pos[2] + 1]
+        if self.scaffold_exist(current_pos):
+            col_block_above = not self._isOutOfBound(above_coordinate) and self._columnExist(above_coordinate)
+            empty_above = not self._isOutOfBound(above_coordinate) and self._is_empty(above_coordinate)
+            if not col_block_above or empty_above:
+                return True
+            if self._isOutOfBound(above_coordinate):  # case: we are at the top of the grid
+                return True
+        return False
+    
     """
     if there exist supporting neighborblock around currentPos, 
     SUPORTING IF THERE ARE 4 SCAFFOLD 
 
     arg: 
        currentPos: 3-tuple (x, y, z), the location we want to place the block
-    
     """ 
     def _check_support(self, currentPos, beam=False):   
         support = True
@@ -343,21 +379,19 @@ class ScaffoldGridWorldEnv(gym.Env):
         
         # Remove invalid directions
         for direction in scalffold_direction:
-            if direction[0] < 0 or direction[0] >= self.dimension_size \
-                    or direction[1] < 0 or direction[1] >= self.dimension_size \
-                    or direction[2] < 0 or direction[2] >= self.dimension_size:
+            if self._isOutOfBound(direction):
                 scalffold_direction.remove(direction)
         for direction in adjacent_direction:
-            if direction[0] < 0 or direction[0] >= self.dimension_size \
-                    or direction[1] < 0 or direction[1] >= self.dimension_size \
-                    or direction[2] < 0 or direction[2] >= self.dimension_size:
                 adjacent_direction.remove(direction)
         
+        # we doing one scaffold system. If there is any scaffold in the direction, we consider it as supporting
         for scaffold_dir in scalffold_direction:
-            if self.building_zone[scaffold_dir[0], scaffold_dir[1], scaffold_dir[2]] == ScaffoldGridWorldEnv.EMPTY:
-                support = False
+            if self.scaffold_exist(scaffold_dir):
+                support = True
                 break
+        # TODO: there are electrical and pipe block now. so need to check implementation
         if beam:
+            # for beam it is supported by column block below, or clamp to any blocks
             if support:
                 if self.building_zone[currentPos[0], currentPos[1], currentPos[2] - 1] == ScaffoldGridWorldEnv.COL_BLOCK:
                     support = True
@@ -369,7 +403,6 @@ class ScaffoldGridWorldEnv(gym.Env):
                             support = True
                             break
         return support
-        
         # Check if there's any supporting block
 
 
@@ -408,13 +441,48 @@ class ScaffoldGridWorldEnv(gym.Env):
             return True
         return False
     
+    
 
-    def step(self, action_tuple):
-        if (len(action_tuple) != 2):
-            raise ValueError("action_tuple should be a tuple of 2 elements")
+    
 
-        action = action_tuple[0]
-        agent_id = action_tuple[1]
+    """
+    Given pos = (x, y, z) add the block of block_type to the building zone
+    
+    """
+    def _add_block(self, pos, block_type):
+        x, y, z = pos                
+        # Find the index of the leftmost non-zero element at (x, y, z)
+        mixture_index_available = np.argmax(self.building_zone[x, y, z] != 0)
+
+        success = False
+        if (self._is_empty([x, y, z])):
+            self.building_zone[x, y, z, 0] = block_type  # trivially add the block
+            success = True
+        # case we wan to add a beam block on top of a column block
+        elif (self.building_zone[x, y, z, 0] == ScaffoldGridWorldEnv.COL_BLOCK and block_type == ScaffoldGridWorldEnv.BEAM_BLOCK):
+            self.building_zone[x, y, z, 1] = ScaffoldGridWorldEnv.BEAM_BLOCK 
+            success = True
+        # case we wan to add a electrical block on top of a pipe block
+        elif (self.building_zone[x, y, z, 0] == ScaffoldGridWorldEnv.PIPE_BLOCK and block_type == ScaffoldGridWorldEnv.ELECTRICAL_BLOCK):
+            self.building_zone[x, y, z, 1] = ScaffoldGridWorldEnv.ELECTRICAL_BLOCK
+            success = True
+        return success
+    """
+    given a position in the building zone, check if it matches the target zone
+    
+    """ 
+    def _correct_placement(self, pos):
+        if (self.building_zone[pos[0], pos[1], pos[2]] == self.target[pos[0], pos[1], pos[2]]):
+            return True
+        return False
+
+
+    def _isValidMove(self, new_pos, action, current_pos):
+        if (self._isOutOfBound(new_pos)):
+            return False
+        return True
+
+    def step(self, action, agent_id=0):
         #self.mutex.acquire()  # get lock to enter critical section
         self.timestep_elapsed += 1
         """
@@ -436,7 +504,7 @@ class ScaffoldGridWorldEnv(gym.Env):
         is finished. 
         
         """
-        current_pos = self.AgentsPos[agent_id]
+        current_pos = self.AgentsPos[0]
 
         if (action in [self.action_enum.FORWARD, 
                        self.action_enum.BACKWARD,
@@ -470,25 +538,17 @@ class ScaffoldGridWorldEnv(gym.Env):
             truncated = False
             is_valid = False
             # agent can only place scaffold if there is nothing in current position
-            if (self._isScaffoldValid(current_pos)):
+            if (self._isScaffoldValid(current_pos) and self._is_empty(current_pos)):
                 self.building_zone[current_pos[0], current_pos[1], current_pos[2]] = ScaffoldGridWorldEnv.SCAFFOLD  # place scaffold block
+                success = self._add_block(current_pos, ScaffoldGridWorldEnv.SCAFFOLD)
+                assert(success, "Failed to add block")
                 is_valid = True
-
             obs = self.get_obs(agent_id)
 #            self.mutex.release()
             if not is_valid: R = -1
             if self.timestep_elapsed > MAX_TIMESTEP:
                 truncated = True
-
-            #if is_valid and self.target[current_pos[0], current_pos[1], current_pos[2]] != ScaffoldGridWorldEnv.EMPTY:
-            #    # case: if we placed a scafold on the target
-            #    R = -2
-            #else:
-            #    # we place scafold on non target
-            #    R = -0.75
-
             return obs, R, terminated, truncated, {}
-            
         elif (action == self.action_enum.REMOVE_SCAFOLD):
             R = -0.3
             if self.finished_structure_with_scafold:
@@ -498,21 +558,8 @@ class ScaffoldGridWorldEnv(gym.Env):
             is_valid = False
             # agent can only remove scaffold if there is a scaffold in current position and there is no scaffold above or agent above
 
-            
-            if (self._isInScaffoldingDomain(current_pos)):
-                if (not self._isOutOfBound([current_pos[0], current_pos[1], current_pos[2] + 1]) and  (self._is_empty([current_pos[0], current_pos[1], current_pos[2] + 1]) or 
-                                                                                                       self.building_zone[current_pos[0], current_pos[1], current_pos[2] + 1] == ScaffoldGridWorldEnv.BEAM_BLOCK)):
-                    # case: remove scaffold is not on the top floor and there is no block above
-                    self.building_zone[current_pos[0], current_pos[1], current_pos[2]] = 0
-                    is_valid = True
-                elif (self._isOutOfBound([current_pos[0], current_pos[1], current_pos[2] + 1])):
-                    # case: remove scaffold is on the top floor
-                    self.building_zone[current_pos[0], current_pos[1], current_pos[2]] = 0
-                    is_valid = True
-            else:  # case: invalid remove, so agent just stay here
-                pass
-                
-            
+            is_valid = self._check_remove_scaffold(current_pos)
+
             # return obs, reward, done, info
             obs = self.get_obs(agent_id)
             #self.mutex.release()
@@ -531,21 +578,21 @@ class ScaffoldGridWorldEnv(gym.Env):
             truncated = False
             is_valid = False
             
-            # if there is already a block or a scaffold in the position
-            if self.building_zone[current_pos[0], current_pos[1], current_pos[2]] == ScaffoldGridWorldEnv.SCAFFOLD or self._isInBlock(current_pos):
+            # if there is already block occupied
+            if self._is_full(current_pos):
                 is_valid = False
             
             # Check if there is proper support. Case 1, on the floor
             elif current_pos[2] == 0:
                 is_valid = True
-            # Case 2, on the scaffold and there is column block below
+            # Case 2, not on the floor && on the scaffold and there is column block below
             elif self._check_support(current_pos) and self._columnExist((current_pos[0], current_pos[1], current_pos[2] - 1)):
                 is_valid = True
-                
-            if is_valid:
-                self.building_zone[current_pos[0], current_pos[1], current_pos[2]] = ScaffoldGridWorldEnv.COL_BLOCK
-
-                if  self.target[current_pos[0], current_pos[1], current_pos[2]] == self.building_zone[current_pos[0], current_pos[1], current_pos[2]]:
+            
+            # try adding a block
+            block_add_success = self._add_block(current_pos, ScaffoldGridWorldEnv.COL_BLOCK)
+            if is_valid and block_add_success:
+                if self._correct_placement(current_pos): 
                     R = 0.9  # placing scafold column costs (-0.2 + -0.2) = -0.4. Placing column stack costs -1.2. (6*-0.2) = -1.2. so 0.9 + -1.2 > -0.4
                 else:
                     R = -0.5
@@ -561,12 +608,12 @@ class ScaffoldGridWorldEnv(gym.Env):
                 
                 R = 1
                 self.finished_structure_reward_used = True
-
             if self.timestep_elapsed > MAX_TIMESTEP:
                 truncated = True
                 return obs, R, terminated, truncated, {}
             else:
                 return obs, R, terminated, truncated, {}
+
         elif action == self.action_enum.PLACE_BEAM:
             R = -0.5
             terminated = False
@@ -614,7 +661,6 @@ class ScaffoldGridWorldEnv(gym.Env):
                     return obs, R, terminated, truncated, {}
                 else:
                     return obs, R, terminated, truncated, {}
-
         return
 
         
@@ -626,61 +672,88 @@ class ScaffoldGridWorldEnv(gym.Env):
     
     """
     def render(self):
-        # acumulate all agents position
-
-        mask = self.building_zone[..., 0] == ScaffoldGridWorldEnv.COL_BLOCK  # (8, 8, 8)
-
-        print(mask.shape)
-        print(mask)
-
         fig = plt.figure()
-        colors = np.empty(mask.shape, dtype=object)
-        colors[mask] = 'blue'
 
-        #agent_pos_grid = np.zeros((self.dimension_size, self.dimension_size, self.dimension_size), dtype=int)
-        #agent_pos_grid[self.AgentsPos[0][0], self.AgentsPos[0][1], self.AgentsPos[0][2]] = 1
 
-        ## prepare some coordinates
-        #col_cube = self.building_zone == ScaffoldGridWorldEnv.COL_BLOCK
-        #beam_cube = self.building_zone == ScaffoldGridWorldEnv.BEAM_BLOCK
-        #scaffold_cube = self.building_zone == ScaffoldGridWorldEnv.SCAFFOLD
-        #agent_position_cube = agent_pos_grid == 1
 
-        #fig = plt.figure()
+        ### TARGET RENDER
+        # all the mask of the blocks in (x, y, z, 0)
+        col_mask_0 = self.target[..., 0] == ScaffoldGridWorldEnv.COL_BLOCK  # (8, 8, 8)
+        beam_mask_0 = self.target[..., 0] == ScaffoldGridWorldEnv.BEAM_BLOCK  # (8, 8, 8)
+        electrical_mask_0 = self.target[..., 0] == ScaffoldGridWorldEnv.ELECTRICAL_BLOCK  # (8, 8, 8)
+        pipe_mask_0 = self.target[..., 0] == ScaffoldGridWorldEnv.PIPE_BLOCK
 
-        #building_zone_render = col_cube | agent_position_cube | beam_cube | scaffold_cube
-        ## set the colors of each object
-        #colors = np.empty(building_zone_render.shape, dtype=object)
-        #colors[col_cube] = '#7A88CCC0'
-        #colors[agent_position_cube] = '#FFD65DC0'
-        #colors[beam_cube] = '#FF5733C0'
-        #colors[scaffold_cube] = 'pink'
-        ## print(colors)
+        # all the mask of the blocks in (x, y, z, 1). only beam or electrial can be mixed on top of column and pipe respectively
+        beam_mask_1 = self.target[..., 1] == ScaffoldGridWorldEnv.BEAM_BLOCK  # (8, 8, 8)
+        electrical_mask_1 = self.target[..., 1] == ScaffoldGridWorldEnv.ELECTRICAL_BLOCK  # (8, 8, 8)
 
-        #ax = fig.add_subplot(1, 2, 1, projection='3d')
-        #ax.voxels(building_zone_render, facecolors=colors, edgecolor='k')
+        beam_colum_mask = col_mask_0 & beam_mask_1  # beam and column can be mixed in same (x, y, z)
+        electrical_pipe_mask = pipe_mask_0 & electrical_mask_1  # electrical and pipe can be mixed in same (x, y, z)
 
-        #col_cube = self.target == ScaffoldGridWorldEnv.COL_BLOCK
-        #beam_cube = self.target == ScaffoldGridWorldEnv.BEAM_BLOCK
-        #target_render = col_cube | beam_cube
-        ## set the colors of each object
-        #colors = np.empty(target_render.shape, dtype=object)
-        #colors[col_cube] = '#7A88CCC0'
-        #colors[beam_cube] = '#FF5733C0'
-        #ax = fig.add_subplot(1, 2, 2, projection='3d')
-        #ax.voxels(target_render, facecolors=colors, edgecolor='k')
+        target_render = col_mask_0 | beam_mask_0 | electrical_mask_0 | pipe_mask_0 | beam_colum_mask | electrical_pipe_mask
+        # prepare mixture mask
+        # set the colors of each object
+        colors = np.empty(target_render.shape, dtype=object)
+        colors[col_mask_0] = '#7aa6cc'  # blue
+        colors[beam_mask_0] = '#FF5733C0'  # red
+        colors[electrical_mask_0] = '#ccc87a'  # yellow
+        colors[pipe_mask_0] = '#7accbc'   # turoise
+        colors[beam_colum_mask] = '#967acc'  # purple = red + blue
+        colors[electrical_pipe_mask] = '#b3cc7a'  # yellow green
 
-        #plt.show()
+        #print(colors)
 
-  
+        ax = fig.add_subplot(1, 2, 2, projection='3d')
+        ax.voxels(target_render, facecolors=colors, edgecolor='k')
+
+
+        # adding legends (used AI assisted tool to generate this legend code)
+        legend_labels = ['column', 'beam', 'electrical', 'pipe', 'beam_column', 'electrical_pipe']
+        legend_colors = ['#7aa6cc', '#FF5733C0', '#ccc87a', '#7accbc', '#967acc', '#b3cc7a']
+        legend_patches = [plt.Line2D([0], [0], marker='o', color='w', label=label, markerfacecolor=color, markersize=10) for label, color in zip(legend_labels, legend_colors)]
+        ax.legend(handles=legend_patches, loc='upper right',  bbox_to_anchor=(1.2, 1.4))
+
+
+
+
+
+        ### BUILDING ZONE RENDER
+        agent_mask  = self.agent_pos_grid == 1
+        col_mask_0 = self.building_zone[..., 0] == ScaffoldGridWorldEnv.COL_BLOCK  # (8, 8, 8)
+        beam_mask_0 = self.building_zone[..., 0] == ScaffoldGridWorldEnv.BEAM_BLOCK  # (8, 8, 8)
+        electrical_mask_0 = self.building_zone[..., 0] == ScaffoldGridWorldEnv.ELECTRICAL_BLOCK  # (8, 8, 8)
+        pipe_mask_0 = self.building_zone[..., 0] == ScaffoldGridWorldEnv.PIPE_BLOCK
+
+        beam_mask_1 = self.building_zone[..., 1] == ScaffoldGridWorldEnv.BEAM_BLOCK  # (8, 8, 8)
+        electrical_mask_1 = self.building_zone[..., 1] == ScaffoldGridWorldEnv.ELECTRICAL_BLOCK  # (8, 8, 8)
+
+        beam_colum_mask = col_mask_0 & beam_mask_1  # beam and column can be mixed in same (x, y, z)
+        electrical_pipe_mask = pipe_mask_0 & electrical_mask_1  # electrical and pipe can be mixed in same (x, y, z)
+
+        scaffold_mask = self.building_zone[..., 0] == ScaffoldGridWorldEnv.SCAFFOLD
+
+        building_render = col_mask_0 | beam_mask_0 | electrical_mask_0 | pipe_mask_0 | beam_colum_mask | electrical_pipe_mask | scaffold_mask | agent_mask
+
+        colors[scaffold_mask] = 'pink'
+        colors[agent_mask] = 'black'
+
+        ax = fig.add_subplot(1, 2, 1, projection='3d')
+        ax.voxels(building_render, facecolors=colors, edgecolor='k')
+        plt.show()
 
     
     def close(self):
         pass
 
 
+
+
+
+
 if __name__ == '__main__':
     env = ScaffoldGridWorldEnv(8, "path", mixture_capacity=2, num_agents=1, debug=False)    
+    #print(env.target)
+    env.step(Action.FORWARD)
     env.render()
 
 
