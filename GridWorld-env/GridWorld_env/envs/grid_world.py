@@ -91,6 +91,7 @@ class ScaffoldGridWorldEnv(gym.Env):
        
         self.num_agents = num_agents
 
+        self.AgentsPos = np.zeros((self.num_agents, 3), dtype=int)
         #self.reset()
 
         self._init_target()
@@ -178,7 +179,7 @@ class ScaffoldGridWorldEnv(gym.Env):
 
     def _placeAgentInBuildingZone(self):
         # place some agent in building zone for testing
-        self.AgentsPos[0] = [self.dimension_size//2, self.dimension_size//2, 0]
+        self.AgentsPos[0] = [0, 0, 0]
         return
 
     def _init_target(self):
@@ -475,6 +476,12 @@ class ScaffoldGridWorldEnv(gym.Env):
             return True
         return False
 
+
+    def _isValidMove(self, new_pos, action, current_pos):
+        if (self._isOutOfBound(new_pos)):
+            return False
+        return True
+
     def step(self, action, agent_id=0):
         #self.mutex.acquire()  # get lock to enter critical section
         self.timestep_elapsed += 1
@@ -711,6 +718,7 @@ class ScaffoldGridWorldEnv(gym.Env):
 
 
         ### BUILDING ZONE RENDER
+        agent_mask  = self.agent_pos_grid == 1
         col_mask_0 = self.building_zone[..., 0] == ScaffoldGridWorldEnv.COL_BLOCK  # (8, 8, 8)
         beam_mask_0 = self.building_zone[..., 0] == ScaffoldGridWorldEnv.BEAM_BLOCK  # (8, 8, 8)
         electrical_mask_0 = self.building_zone[..., 0] == ScaffoldGridWorldEnv.ELECTRICAL_BLOCK  # (8, 8, 8)
@@ -724,9 +732,10 @@ class ScaffoldGridWorldEnv(gym.Env):
 
         scaffold_mask = self.building_zone[..., 0] == ScaffoldGridWorldEnv.SCAFFOLD
 
-        building_render = col_mask_0 | beam_mask_0 | electrical_mask_0 | pipe_mask_0 | beam_colum_mask | electrical_pipe_mask | scaffold_mask
+        building_render = col_mask_0 | beam_mask_0 | electrical_mask_0 | pipe_mask_0 | beam_colum_mask | electrical_pipe_mask | scaffold_mask | agent_mask
 
         colors[scaffold_mask] = 'pink'
+        colors[agent_mask] = 'black'
 
         ax = fig.add_subplot(1, 2, 1, projection='3d')
         ax.voxels(building_render, facecolors=colors, edgecolor='k')
@@ -743,7 +752,8 @@ class ScaffoldGridWorldEnv(gym.Env):
 
 if __name__ == '__main__':
     env = ScaffoldGridWorldEnv(8, "path", mixture_capacity=2, num_agents=1, debug=False)    
-    print(env.target)
+    #print(env.target)
+    env.step(Action.FORWARD)
     env.render()
 
 
